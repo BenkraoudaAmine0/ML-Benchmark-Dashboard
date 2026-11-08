@@ -19,7 +19,7 @@ warnings.filterwarnings("ignore", category=FutureWarning)
 warnings.filterwarnings("ignore", category=UserWarning)
 
 # Add project root to path
-PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
@@ -27,18 +27,18 @@ import numpy as np
 import pandas as pd
 import streamlit as st
 
-from Modeling.config import (
+from config import (
     DATASETS_DIR,
     TASK_CLASSIFICATION,
     TASK_REGRESSION,
 )
-from Modeling.core.data_loader import (
+from core.data_loader import (
     detect_task_type,
     discover_datasets,
     load_dataset,
 )
-from Modeling.core.pipeline import TrainingPipeline
-from Modeling.core.storage import (
+from core.pipeline import TrainingPipeline
+from core.storage import (
     delete_experiment,
     export_leaderboard_df,
     get_all_experiments,
@@ -46,21 +46,25 @@ from Modeling.core.storage import (
     get_leaderboard,
     init_db,
 )
-from Modeling.frontend import charts
-from Modeling.frontend.ui_theme import inject_custom_css, render_header, render_kpi
-from Modeling.models.registry import MODEL_REGISTRY, list_available_models
+from frontend import charts
+from frontend import ui_theme as ui
+from models.registry import MODEL_REGISTRY, list_available_models
 
 
 # Page Configuration
+_FAVICON = Path(__file__).resolve().parent / "assets" / "favicon.png"
 st.set_page_config(
-    page_title="Model Benchmark Studio",
-    page_icon="⚡",
+    page_title="ML2 Model Benchmark Studio",
+    page_icon=str(_FAVICON) if _FAVICON.exists() else "⚡",
     layout="wide",
     initial_sidebar_state="expanded",
 )
 
-# Apply custom styling
-inject_custom_css()
+# Resolve the active theme, inject the design system and sync the chart palette.
+THEME_MODE = ui.requested_mode()
+THEME = ui.resolve_theme()
+ui.inject_css(THEME_MODE)
+charts.set_theme(THEME)
 init_db()
 
 # ------------------------------------------------------------------------------
@@ -72,13 +76,23 @@ if "selected_exp_id" not in st.session_state:
     st.session_state.selected_exp_id = None
 
 
+def _shorten(text: object, limit: int = 24) -> str:
+    """Trim long dataset / run names so KPI cards stay on one or two lines."""
+    value = str(text)
+    return value if len(value) <= limit else value[: limit - 1] + "…"
+
+
 # ------------------------------------------------------------------------------
 # Sidebar Navigation & Controls
 # ------------------------------------------------------------------------------
 with st.sidebar:
-    st.markdown("### ⚡ Benchmark Studio")
-    st.markdown("Compare classical & ensemble ML algorithms across classification & regression.")
+    ui.sidebar_brand()
+    ui.theme_switcher()
 
+    st.markdown(
+        ui.section("Navigate", "Five focused workspaces."),
+        unsafe_allow_html=True,
+    )
     menu = st.radio(
         "Navigation",
         [
@@ -89,12 +103,15 @@ with st.sidebar:
             "🗄️ Experiment History",
         ],
         index=0,
+        label_visibility="collapsed",
     )
 
-    st.markdown("---")
-    # Quick database summary
+    st.markdown(
+        ui.section("Workspace", "Stored benchmarks and the active experiment."),
+        unsafe_allow_html=True,
+    )
     all_experiments = get_all_experiments()
-    st.caption(f"💾 **SQLite Storage**: `{len(all_experiments)}` experiments recorded.")
+    st.caption(f"**SQLite storage** · `{len(all_experiments)}` experiments recorded")
     if all_experiments:
         exp_options = {e["id"]: f"#{e['id']} · {e['run_name']} ({e['task_type']})" for e in all_experiments}
         current_id = st.session_state.selected_exp_id or all_experiments[0]["id"]
@@ -109,14 +126,25 @@ with st.sidebar:
         )
         st.session_state.selected_exp_id = selected_id
 
+    # Signature layers: frosted menu toggle, background particles, chart motion.
+    ui.sidebar_toggle(THEME)
+    ui.background_layer(THEME)
+    ui.chart_motion()
+
 
 # ------------------------------------------------------------------------------
 # TAB 1: Comparison Dashboard (DEFAULT VIEW)
 # ------------------------------------------------------------------------------
 if menu == "🏆 Comparison Dashboard":
-    render_header(
-        "Model Benchmark Dashboard",
-        "Compare classical baselines with modern boosting & bagging ensemble architectures.",
+    st.markdown(
+        ui.hero(
+            "Benchmark Console",
+            "Compare classical baselines with modern boosting and bagging ensemble architectures "
+            "under identical, reproducible conditions.",
+            meta=["12 architectures", "SQLite run history", "Interactive Plotly charts", "Live inference"],
+            eyebrow=f"benchmark console · {THEME} mode",
+        ),
+        unsafe_allow_html=True,
     )
 
     all_experiments = get_all_experiments()
@@ -149,18 +177,44 @@ if menu == "🏆 Comparison Dashboard":
 
             fastest_model = min(leaderboard, key=lambda x: x["train_time_sec"])
 
-            # Top KPI Cards
-            kpi_col1, kpi_col2, kpi_col3, kpi_col4 = st.columns(4)
-            with kpi_col1:
-                render_kpi("Top Performer", best_model["model_name"], f"Best on {primary_label}", card_type="winner")
-            with kpi_col2:
-                render_kpi(f"Top {primary_label}", best_score_str, f"Across {len(leaderboard)} models")
-            with kpi_col3:
-                render_kpi("Fastest Trainer", fastest_model["model_name"], f"{fastest_model['train_time_sec']:.4f}s latency")
-            with kpi_col4:
-                render_kpi("Dataset & Task", f"{exp_info['dataset_name']}", f"{task_type.capitalize()} · {exp_info['n_train']} train / {exp_info['n_test']} test")
+            # Top KPI cards
+            st.markdown(
+                ui.kpi_grid(
+                    [
+                        {
+                            "label": "Top performer",
+                            "value": best_model["model_name"],
+                            "hint": f"Best on {primary_label}",
+                            "tone": "warn",
+                        },
+                        {
+                            "label": f"Top {primary_label}",
+                            "value": best_score_str,
+                            "hint": f"Across {len(leaderboard)} models",
+                            "tone": "info",
+                        },
+                        {
+                            "label": "Fastest trainer",
+                            "value": fastest_model["model_name"],
+                            "hint": f"{fastest_model['train_time_sec']:.4f}s latency",
+                            "tone": "good",
+                        },
+                        {
+                            "label": "Dataset & task",
+                            "value": _shorten(exp_info["dataset_name"]),
+                            "hint": f"{task_type.capitalize()} · {exp_info['n_train']} train / {exp_info['n_test']} test",
+                            "tone": "neutral",
+                        },
+                    ],
+                    columns=4,
+                ),
+                unsafe_allow_html=True,
+            )
 
-            st.markdown("### 📊 Benchmark Leaderboard")
+            st.markdown(
+                ui.section("Leaderboard", "Every model in the active experiment, ranked by the primary metric."),
+                unsafe_allow_html=True,
+            )
 
             # Tabular Leaderboard
             df_leaderboard = export_leaderboard_df(exp_id)
@@ -172,8 +226,11 @@ if menu == "🏆 Comparison Dashboard":
                     hide_index=True,
                 )
 
-            # Interactive Plotly Charts
-            st.markdown("### 📈 Comparative Visualizations")
+            # Interactive Plotly charts
+            st.markdown(
+                ui.section("Comparative visualizations", "Metric bars and training-time overhead."),
+                unsafe_allow_html=True,
+            )
             chart_col1, chart_col2 = st.columns(2)
 
             with chart_col1:
@@ -194,22 +251,31 @@ if menu == "🏆 Comparison Dashboard":
                 fig_metric = charts.plot_metric_comparison(
                     leaderboard, selected_metric, higher_is_better=higher_better
                 )
-                st.plotly_chart(fig_metric, width="stretch")
+                with st.container(key="frame3d-metric"):
+                    st.plotly_chart(fig_metric, config=charts.PLOTLY_CONFIG, width="stretch")
 
             with chart_col2:
                 fig_time = charts.plot_latency_comparison(leaderboard)
-                st.plotly_chart(fig_time, width="stretch")
+                with st.container(key="frame3d-latency"):
+                    st.plotly_chart(fig_time, config=charts.PLOTLY_CONFIG, width="stretch")
 
-            # Radar & Category Tradeoff
-            st.markdown("### 🕸️ Multi-Metric & Architecture Comparison")
+            # Radar & category trade-off
+            st.markdown(
+                ui.section("Multi-metric comparison", "Radar overlay and architecture-level summary."),
+                unsafe_allow_html=True,
+            )
             radar_col1, radar_col2 = st.columns([1.2, 1])
 
             with radar_col1:
                 fig_radar = charts.plot_radar_metrics(leaderboard, task_type)
-                st.plotly_chart(fig_radar, width="stretch")
+                with st.container(key="frame3d-radar"):
+                    st.plotly_chart(fig_radar, config=charts.PLOTLY_CONFIG, width="stretch")
 
             with radar_col2:
-                st.markdown("#### ⚖️ Classical vs Ensemble Summary")
+                st.markdown(
+                    ui.chart_header("Classical vs ensemble", "aggregate"),
+                    unsafe_allow_html=True,
+                )
                 classical_models = [m for m in leaderboard if m["category"] == "classical"]
                 ensemble_models = [m for m in leaderboard if m["category"] == "ensemble"]
 
@@ -219,29 +285,28 @@ if menu == "🏆 Comparison Dashboard":
                     c_avg_time = np.mean([m["train_time_sec"] for m in classical_models])
                     e_avg_time = np.mean([m["train_time_sec"] for m in ensemble_models])
 
+                    lead = (
+                        f"Ensembles lead by +{e_avg_score - c_avg_score:.4f}"
+                        if e_avg_score >= c_avg_score
+                        else f"Classical models lead by +{c_avg_score - e_avg_score:.4f}"
+                    )
                     st.markdown(
-                        f"""
-                        <div class="card-box">
-                            <p><b>Classical Baselines (SVM, KNN, D-Tree):</b></p>
-                            <ul>
-                                <li>Mean {primary_label}: <b>{c_avg_score:.4f}</b></li>
-                                <li>Mean Training Latency: <b>{c_avg_time:.4f}s</b></li>
-                            </ul>
-                            <p><b>Ensemble Architectures (RF, AdaBoost, XGBoost, LightGBM, CatBoost):</b></p>
-                            <ul>
-                                <li>Mean {primary_label}: <b>{e_avg_score:.4f}</b></li>
-                                <li>Mean Training Latency: <b>{e_avg_time:.4f}s</b></li>
-                            </ul>
-                            <p style="color: #22D3EE;">
-                                {'Ensembles lead by +' + f'{(e_avg_score - c_avg_score):.4f}' if e_avg_score >= c_avg_score else 'Classical models lead by +' + f'{(c_avg_score - e_avg_score):.4f}'} on {primary_label}!
-                            </p>
-                        </div>
-                        """,
+                        ui.callout(
+                            f"<strong>Classical baselines</strong> · mean {primary_label}: "
+                            f"<code>{c_avg_score:.4f}</code> · mean latency <code>{c_avg_time:.4f}s</code><br>"
+                            f"<strong>Ensemble architectures</strong> · mean {primary_label}: "
+                            f"<code>{e_avg_score:.4f}</code> · mean latency <code>{e_avg_time:.4f}s</code><br>"
+                            f"<strong>{lead}</strong> on {primary_label}.",
+                            "info",
+                        ),
                         unsafe_allow_html=True,
                     )
 
-            # Head-to-Head Comparison
-            st.markdown("### 🥊 Head-to-Head Model Matchup")
+            # Head-to-head comparison
+            st.markdown(
+                ui.section("Head-to-head matchup", "Metric-by-metric delta between two models."),
+                unsafe_allow_html=True,
+            )
             h2h_c1, h2h_c2 = st.columns(2)
             model_names = [m["model_name"] for m in leaderboard]
             with h2h_c1:
@@ -276,18 +341,29 @@ if menu == "🏆 Comparison Dashboard":
             )
             st.table(pd.DataFrame(diff_records))
 
+    st.markdown(ui.footer(), unsafe_allow_html=True)
+
 
 # ------------------------------------------------------------------------------
 # TAB 2: Train New Models
 # ------------------------------------------------------------------------------
 elif menu == "🚀 Train New Models":
-    render_header(
-        "Run Model Benchmark Pipeline",
-        "Select dataset, configure tasks, pick models, and train benchmarks with persistent SQLite storage.",
+    st.markdown(
+        ui.hero(
+            "Train New Models",
+            "Select a dataset, configure the task, choose the architectures, and run the benchmark "
+            "pipeline with persistent SQLite storage.",
+            meta=["Auto task detection", "Leak-free preprocessing", "12 architectures", "Joblib artifacts"],
+            eyebrow=f"benchmark console · {THEME} mode",
+        ),
+        unsafe_allow_html=True,
     )
 
-    # Step 1: Select or Upload Dataset
-    st.markdown("#### 1. Choose Dataset")
+    # Step 1: Select or upload dataset
+    st.markdown(
+        ui.section("01 · Choose dataset", "Repository CSVs or your own upload."),
+        unsafe_allow_html=True,
+    )
     ds_source_tab1, ds_source_tab2 = st.tabs(["📁 Existing Repository Datasets", "📤 Upload New CSV"])
 
     df = None
@@ -317,8 +393,11 @@ elif menu == "🚀 Train New Models":
             st.dataframe(df.head(), width="stretch")
 
         st.markdown("---")
-        # Step 2: Target & Task Configuration
-        st.markdown("#### 2. Target Column & Task")
+        # Step 2: Target & task configuration
+        st.markdown(
+            ui.section("02 · Target column & task", "Automatic inference with a manual override."),
+            unsafe_allow_html=True,
+        )
         col_t1, col_t2 = st.columns(2)
 
         with col_t1:
@@ -334,8 +413,11 @@ elif menu == "🚀 Train New Models":
                 help="Auto-detected based on target column datatype and cardinality.",
             )
 
-        # Step 3: Dataset Size Reduction & Train/Test Split
-        st.markdown("#### 3. Dataset Size & Preprocessing")
+        # Step 3: Dataset size & train/test split
+        st.markdown(
+            ui.section("03 · Dataset size & preprocessing", "Split ratio, seed and feature scaling."),
+            unsafe_allow_html=True,
+        )
         col_s1, col_s2, col_s3 = st.columns(3)
         with col_s1:
             test_size = st.slider("Test Split Ratio", min_value=0.1, max_value=0.5, value=0.2, step=0.05)
@@ -379,8 +461,11 @@ elif menu == "🚀 Train New Models":
                 else:
                     st.caption(f"⚡ Taking the first `{max_samples_val:,}` rows in original file order.")
 
-        # Step 4: Model Selection
-        st.markdown("#### 4. Select Models to Train")
+        # Step 4: Model selection
+        st.markdown(
+            ui.section("04 · Select models", "Start from a preset, then fine-tune the selection."),
+            unsafe_allow_html=True,
+        )
         col_btn1, col_btn2, col_btn3, col_btn4 = st.columns(4)
 
         registered_models = list_available_models(task_type)
@@ -470,6 +555,21 @@ elif menu == "🚀 Train New Models":
                 else:
                     df_to_use = df
 
+                # Guard: regression requires a numeric (or numeric-coercible) target
+                if task_type == TASK_REGRESSION:
+                    raw_target = df_to_use[target_col]
+                    coerced_target = pd.to_numeric(raw_target, errors="coerce")
+                    invalid_target = coerced_target.isna() & raw_target.notna()
+                    if invalid_target.any():
+                        samples = raw_target[invalid_target].astype(str).unique()[:3].tolist()
+                        st.error(
+                            f"Target column `{target_col}` has {int(invalid_target.sum()):,} "
+                            f"non-numeric value(s) (e.g. {samples}), so it cannot be used for "
+                            "regression. Pick a numeric target column, or switch **Task Type** "
+                            "to classification."
+                        )
+                        st.stop()
+
                 pipeline = TrainingPipeline(
                     df=df_to_use,
                     target_col=target_col,
@@ -501,14 +601,21 @@ elif menu == "🚀 Train New Models":
                     import traceback
                     st.code(traceback.format_exc())
 
+    st.markdown(ui.footer(), unsafe_allow_html=True)
+
 
 # ------------------------------------------------------------------------------
 # TAB 3: Model Deep Dive
 # ------------------------------------------------------------------------------
 elif menu == "🔬 Model Deep Dive":
-    render_header(
-        "Model Deep Dive & Diagnostics",
-        "Inspect individual model performance, confusion matrices, residuals, and feature importances.",
+    st.markdown(
+        ui.hero(
+            "Model Deep Dive",
+            "Inspect individual model performance, confusion matrices, residuals and feature importances.",
+            meta=["Per-model diagnostics", "Overfitting gap", "Feature importances", "Artifact download"],
+            eyebrow=f"benchmark console · {THEME} mode",
+        ),
+        unsafe_allow_html=True,
     )
 
     all_experiments = get_all_experiments()
@@ -532,15 +639,34 @@ elif menu == "🔬 Model Deep Dive":
             metrics = selected_model["metrics"]
             task_type = exp_info["task_type"]
 
-            # Model Details Cards
-            d_c1, d_c2, d_c3 = st.columns(3)
-            with d_c1:
-                render_kpi("Model Architecture", selected_model["model_name"], f"Category: {selected_model['category'].capitalize()}")
-            with d_c2:
-                render_kpi("Training Time", f"{selected_model['train_time_sec']:.4f}s", "Wall clock latency")
-            with d_c3:
-                score_str = f"{metrics.get('f1_macro', 0):.4f}" if task_type == TASK_CLASSIFICATION else f"{metrics.get('r2', 0):.4f}"
-                render_kpi("Primary Score", score_str, "F1-Macro" if task_type == TASK_CLASSIFICATION else "R² Score")
+            # Model detail cards
+            score_str = f"{metrics.get('f1_macro', 0):.4f}" if task_type == TASK_CLASSIFICATION else f"{metrics.get('r2', 0):.4f}"
+            st.markdown(
+                ui.kpi_grid(
+                    [
+                        {
+                            "label": "Model architecture",
+                            "value": selected_model["model_name"],
+                            "hint": f"Category: {selected_model['category'].capitalize()}",
+                            "tone": "info",
+                        },
+                        {
+                            "label": "Training time",
+                            "value": f"{selected_model['train_time_sec']:.4f}s",
+                            "hint": "Wall-clock latency",
+                            "tone": "neutral",
+                        },
+                        {
+                            "label": "Primary score",
+                            "value": score_str,
+                            "hint": "F1-Macro" if task_type == TASK_CLASSIFICATION else "R² Score",
+                            "tone": "warn",
+                        },
+                    ],
+                    columns=3,
+                ),
+                unsafe_allow_html=True,
+            )
 
             # Overfitting / Generalization Diagnostic
             if "train_f1_macro" in metrics or "train_r2" in metrics:
@@ -549,53 +675,70 @@ elif menu == "🔬 Model Deep Dive":
                 gap = metrics.get("overfit_gap", 0.0)
                 is_overfit = metrics.get("is_overfitting", False)
 
-                col_diag_box = st.container()
-                with col_diag_box:
-                    st.markdown(
-                        f"""
-                        <div class="card-box" style="border-left: 4px solid {'#EF4444' if is_overfit else '#10B981'};">
-                            <b>Generalization Diagnostic (Train vs Test):</b><br>
-                            Train Score: <code>{tr_score:.4f}</code> | Test Score: <code>{te_score:.4f}</code> | Gap (Train - Test): <code>{gap:+.4f}</code>
-                            {' — <span style="color: #EF4444; font-weight: 600;">⚠️ High Overfitting Risk</span> (Learned training noise)' if is_overfit else ' — <span style="color: #10B981; font-weight: 600;">✅ Well Generalized</span>'}
-                        </div>
-                        """,
-                        unsafe_allow_html=True,
-                    )
+                verdict = (
+                    "<strong>High overfitting risk</strong> — the model has memorised training noise."
+                    if is_overfit
+                    else "<strong>Well generalised</strong> — the train/test gap is healthy."
+                )
+                st.markdown(
+                    ui.callout(
+                        f"<strong>Generalization diagnostic (train vs test)</strong><br>"
+                        f"Train score <code>{tr_score:.4f}</code> · test score "
+                        f"<code>{te_score:.4f}</code> · gap <code>{gap:+.4f}</code><br>{verdict}",
+                        "danger" if is_overfit else "success",
+                    ),
+                    unsafe_allow_html=True,
+                )
 
             st.markdown("---")
             col_diag1, col_diag2 = st.columns(2)
 
             with col_diag1:
                 if task_type == TASK_CLASSIFICATION:
-                    st.markdown("#### 🎯 Confusion Matrix")
+                    st.markdown(
+                        ui.chart_header("Confusion matrix", "row share"),
+                        unsafe_allow_html=True,
+                    )
                     cm = metrics.get("confusion_matrix")
                     if cm:
                         fig_cm = charts.plot_confusion_matrix(cm)
-                        st.plotly_chart(fig_cm, width="stretch")
+                        with st.container(key="frame3d-confusion"):
+                            st.plotly_chart(fig_cm, config=charts.PLOTLY_CONFIG, width="stretch")
                     else:
                         st.info("Confusion matrix not recorded.")
                 else:
-                    st.markdown("#### 🎯 Actual vs Predicted")
+                    st.markdown(
+                        ui.chart_header("Actual vs predicted", "prediction sample"),
+                        unsafe_allow_html=True,
+                    )
                     pred_sample = selected_model.get("predictions_sample", {})
                     act = pred_sample.get("actual", [])
                     pred = pred_sample.get("predicted", [])
                     if act and pred:
                         fig_res = charts.plot_residuals(act, pred)
-                        st.plotly_chart(fig_res, width="stretch")
+                        with st.container(key="frame3d-residuals"):
+                            st.plotly_chart(fig_res, config=charts.PLOTLY_CONFIG, width="stretch")
                     else:
                         st.info("Predictions sample not available.")
 
             with col_diag2:
-                st.markdown("#### 🌟 Feature Importances")
+                st.markdown(
+                    ui.chart_header("Feature importances", "top 12"),
+                    unsafe_allow_html=True,
+                )
                 fi = selected_model.get("feature_importances", {})
                 if fi:
                     fig_fi = charts.plot_feature_importances(fi, top_n=12)
-                    st.plotly_chart(fig_fi, width="stretch")
+                    with st.container(key="frame3d-importance"):
+                        st.plotly_chart(fig_fi, config=charts.PLOTLY_CONFIG, width="stretch")
                 else:
                     st.info("Feature importances not natively available for this model type (e.g. distance-based KNN or RBF SVM).")
 
-            # Classification Report or Residual Distribution
-            st.markdown("#### 📋 Performance Report")
+            # Classification report or residual distribution
+            st.markdown(
+                ui.section("Performance report", "Per-class precision / recall / support or the full metric payload."),
+                unsafe_allow_html=True,
+            )
             if task_type == TASK_CLASSIFICATION:
                 clf_report = metrics.get("classification_report", {})
                 if clf_report:
@@ -607,7 +750,10 @@ elif menu == "🔬 Model Deep Dive":
             # Model artifact download
             artifact_path = metrics.get("artifact_path")
             if artifact_path and Path(artifact_path).exists():
-                st.markdown("#### 💾 Export Trained Model")
+                st.markdown(
+                    ui.section("Export trained model", "Serialized pipeline including preprocessing."),
+                    unsafe_allow_html=True,
+                )
                 with open(artifact_path, "rb") as f:
                     joblib_bytes = f.read()
                 st.download_button(
@@ -618,22 +764,45 @@ elif menu == "🔬 Model Deep Dive":
                     help="Serialized model and preprocessor pipeline.",
                 )
 
+    st.markdown(ui.footer(), unsafe_allow_html=True)
+
 
 # ------------------------------------------------------------------------------
 # TAB 4: Live Inference (What-If Tool)
 # ------------------------------------------------------------------------------
 elif menu == "⚡ Live Inference":
-    render_header(
-        "Interactive Model Inference",
-        "Perform live single-sample inference using the models trained during this session.",
+    st.markdown(
+        ui.hero(
+            "Live Inference",
+            "Run single-sample predictions through any model trained in this session and inspect "
+            "class probabilities in real time.",
+            meta=["In-memory pipelines", "What-if inputs", "Class probabilities", "Instant prediction"],
+            eyebrow=f"benchmark console · {THEME} mode",
+        ),
+        unsafe_allow_html=True,
     )
 
     pipeline: Optional[TrainingPipeline] = st.session_state.active_pipeline
 
     if pipeline is None or not pipeline.fitted_trainers:
-        st.info("💡 An active in-memory trained pipeline is needed for live inference. Please go to **🚀 Train New Models** and train models to test them live here!")
+        st.markdown(
+            ui.callout(
+                "<strong>No active pipeline.</strong> Train models in "
+                "<em>Train New Models</em> first — the fitted pipeline stays in memory for this session.",
+                "warning",
+            ),
+            unsafe_allow_html=True,
+        )
     else:
-        st.success(f"Active Pipeline Loaded: **{pipeline.target_col}** ({pipeline.task_type.capitalize()})")
+        st.markdown(
+            ui.callout(
+                f"<strong>Active pipeline loaded</strong> · target <code>{pipeline.target_col}</code> "
+                f"({pipeline.task_type.capitalize()}) · "
+                f"<code>{len(pipeline.fitted_trainers)}</code> trained models.",
+                "success",
+            ),
+            unsafe_allow_html=True,
+        )
 
         available_trainers = pipeline.fitted_trainers
         chosen_mid = st.selectbox(
@@ -643,7 +812,10 @@ elif menu == "⚡ Live Inference":
         )
         trainer = available_trainers[chosen_mid]
 
-        st.markdown("#### 📝 Input Feature Values")
+        st.markdown(
+            ui.section("Input feature values", "Ranges and options are derived from the training split."),
+            unsafe_allow_html=True,
+        )
         # Build form dynamically from X_train_raw
         raw_cols = pipeline.X_train_raw.columns.tolist()
         num_cols = pipeline.preprocessor.num_cols
@@ -679,17 +851,35 @@ elif menu == "⚡ Live Inference":
                 X_proc = pipeline.preprocessor.transform_single_dict(input_data)
                 raw_pred = trainer.predict(X_proc)
 
-                st.markdown("---")
-                st.markdown("### 🎯 Prediction Results")
+                st.markdown(
+                    ui.section("Prediction results", "Live output from the selected model."),
+                    unsafe_allow_html=True,
+                )
                 res_col1, res_col2 = st.columns(2)
 
                 with res_col1:
                     if pipeline.task_type == TASK_CLASSIFICATION:
                         label = pipeline.preprocessor.inverse_transform_target(raw_pred)[0]
-                        render_kpi("Predicted Class", str(label), f"Model: {trainer.display_name}", card_type="winner")
+                        st.markdown(
+                            ui.kpi(
+                                "Predicted class",
+                                str(label),
+                                f"Model: {trainer.display_name}",
+                                tone="warn",
+                            ),
+                            unsafe_allow_html=True,
+                        )
                     else:
                         val = float(raw_pred[0])
-                        render_kpi("Predicted Value", f"{val:.4f}", f"Target: {pipeline.target_col}", card_type="winner")
+                        st.markdown(
+                            ui.kpi(
+                                "Predicted value",
+                                f"{val:.4f}",
+                                f"Target: {pipeline.target_col}",
+                                tone="warn",
+                            ),
+                            unsafe_allow_html=True,
+                        )
 
                 with res_col2:
                     if pipeline.task_type == TASK_CLASSIFICATION and hasattr(trainer, "predict_proba"):
@@ -711,14 +901,21 @@ elif menu == "⚡ Live Inference":
             except Exception as e:
                 st.error(f"Inference error: {e}")
 
+    st.markdown(ui.footer(), unsafe_allow_html=True)
+
 
 # ------------------------------------------------------------------------------
 # TAB 5: Experiment History & DB
 # ------------------------------------------------------------------------------
 elif menu == "🗄️ Experiment History":
-    render_header(
-        "SQLite Experiment History",
-        "Manage stored experiment runs, export benchmark leaderboards, and inspect database records.",
+    st.markdown(
+        ui.hero(
+            "Experiment History",
+            "Every benchmark run is persisted in SQLite — reopen, export or prune them here.",
+            meta=["SQLite storage", "CSV export", "Run management", "Benchmark archive"],
+            eyebrow=f"benchmark console · {THEME} mode",
+        ),
+        unsafe_allow_html=True,
     )
 
     all_experiments = get_all_experiments()
@@ -726,14 +923,41 @@ elif menu == "🗄️ Experiment History":
     if not all_experiments:
         st.info("No recorded experiments found in SQLite.")
     else:
+        latest = all_experiments[0]
+        st.markdown(
+            ui.kpi_grid(
+                [
+                    {
+                        "label": "Experiments stored",
+                        "value": f"{len(all_experiments):,}",
+                        "hint": "SQLite · WAL mode",
+                        "tone": "info",
+                    },
+                    {
+                        "label": "Latest run",
+                        "value": _shorten(latest["run_name"]),
+                        "hint": f"#{latest['id']} · {latest['task_type'].capitalize()}",
+                        "tone": "neutral",
+                    },
+                ],
+                columns=2,
+            ),
+            unsafe_allow_html=True,
+        )
         df_exps = pd.DataFrame(all_experiments)
         st.dataframe(df_exps, width="stretch", hide_index=True)
 
-        st.markdown("---")
+        st.markdown(
+            ui.section("Maintenance", "Export a leaderboard or remove a stored run."),
+            unsafe_allow_html=True,
+        )
         h_col1, h_col2 = st.columns(2)
 
         with h_col1:
-            st.markdown("#### 📥 Export Benchmark Results")
+            st.markdown(
+                ui.chart_header("Export benchmark results", "csv"),
+                unsafe_allow_html=True,
+            )
             exp_to_export = st.selectbox(
                 "Select Experiment to Export",
                 options=[e["id"] for e in all_experiments],
@@ -751,7 +975,10 @@ elif menu == "🗄️ Experiment History":
                 )
 
         with h_col2:
-            st.markdown("#### 🗑️ Delete Experiment")
+            st.markdown(
+                ui.chart_header("Delete experiment", "irreversible"),
+                unsafe_allow_html=True,
+            )
             exp_to_delete = st.selectbox(
                 "Select Experiment to Remove",
                 options=[e["id"] for e in all_experiments],
@@ -762,4 +989,6 @@ elif menu == "🗄️ Experiment History":
                 delete_experiment(exp_to_delete)
                 st.success(f"Experiment #{exp_to_delete} deleted!")
                 st.rerun()
+
+    st.markdown(ui.footer(), unsafe_allow_html=True)
 

@@ -8,8 +8,8 @@ from __future__ import annotations
 from typing import Any, Dict
 from sklearn.neighbors import KNeighborsClassifier, KNeighborsRegressor
 
-from Modeling.config import CAT_CLASSICAL, TASK_CLASSIFICATION
-from Modeling.core.base import BaseModelTrainer
+from config import CAT_CLASSICAL, TASK_CLASSIFICATION
+from core.base import BaseModelTrainer
 
 
 class KNNTrainer(BaseModelTrainer):

@@ -5,44 +5,56 @@ Coordinates model trainers, categories, and dependency verification.
 
 from __future__ import annotations
 
+import importlib
+import logging
 from typing import Any, Dict, List, Optional, Type
-from Modeling.core.base import BaseModelTrainer
-from Modeling.config import CAT_CLASSICAL, CAT_ENSEMBLE, TASK_CLASSIFICATION, TASK_REGRESSION
 
-# Import model trainers
-from Modeling.models.train_linear import LinearModelTrainer
-from Modeling.models.train_svm import SVMTrainer
-from Modeling.models.train_knn import KNNTrainer
-from Modeling.models.train_dtree import DecisionTreeTrainer
-from Modeling.models.train_rf import RandomForestTrainer
-from Modeling.models.train_adaboost import AdaBoostTrainer
-from Modeling.models.train_xgboost import XGBoostTrainer
-from Modeling.models.train_lightgbm import LightGBMTrainer
-from Modeling.models.train_catboost import CatBoostTrainer
-from Modeling.models.train_bagging import BaggingTrainer
-from Modeling.models.train_stacking import StackingTrainer
-from Modeling.models.train_voting import VotingTrainer
+from core.base import BaseModelTrainer
+from config import CAT_CLASSICAL, CAT_ENSEMBLE, TASK_CLASSIFICATION, TASK_REGRESSION
+
+logger = logging.getLogger(__name__)
+
+# Map of trainer class name -> pip requirement for trainers that could not be
+# imported because an optional dependency is not installed.
+MISSING_DEPENDENCIES: Dict[str, str] = {}
 
 
-# Ordered dictionary of model registry
-MODEL_REGISTRY: Dict[str, Type[BaseModelTrainer]] = {
+def _load_trainer(module: str, class_name: str, requirement: str) -> Optional[type]:
+    """Import a trainer class, tolerating a missing optional dependency."""
+    try:
+        return getattr(importlib.import_module(module), class_name)
+    except ImportError as exc:
+        MISSING_DEPENDENCIES[class_name] = requirement
+        logger.warning("Skipping %s (install %r): %s", class_name, requirement, exc)
+        return None
+
+
+# (model id, module, class name, required package)
+_TRAINER_IMPORTS = [
     # Baseline
-    "linear": LinearModelTrainer,
+    ("linear", "models.train_linear", "LinearModelTrainer", "scikit-learn"),
     # Classical Models
-    "svm": SVMTrainer,
-    "knn": KNNTrainer,
-    "dtree": DecisionTreeTrainer,
+    ("svm", "models.train_svm", "SVMTrainer", "scikit-learn"),
+    ("knn", "models.train_knn", "KNNTrainer", "scikit-learn"),
+    ("dtree", "models.train_dtree", "DecisionTreeTrainer", "scikit-learn"),
     # Core Ensemble Models
-    "rf": RandomForestTrainer,
-    "adaboost": AdaBoostTrainer,
-    "xgboost": XGBoostTrainer,
-    "lightgbm": LightGBMTrainer,
-    "catboost": CatBoostTrainer,
+    ("rf", "models.train_rf", "RandomForestTrainer", "scikit-learn"),
+    ("adaboost", "models.train_adaboost", "AdaBoostTrainer", "scikit-learn"),
+    ("xgboost", "models.train_xgboost", "XGBoostTrainer", "xgboost"),
+    ("lightgbm", "models.train_lightgbm", "LightGBMTrainer", "lightgbm"),
+    ("catboost", "models.train_catboost", "CatBoostTrainer", "catboost"),
     # Advanced Ensemble Techniques
-    "bagging": BaggingTrainer,
-    "stacking": StackingTrainer,
-    "voting": VotingTrainer,
-}
+    ("bagging", "models.train_bagging", "BaggingTrainer", "scikit-learn"),
+    ("stacking", "models.train_stacking", "StackingTrainer", "scikit-learn"),
+    ("voting", "models.train_voting", "VotingTrainer", "scikit-learn"),
+]
+
+# Ordered dictionary of model registry (only trainers whose dependencies exist)
+MODEL_REGISTRY: Dict[str, Type[BaseModelTrainer]] = {}
+for _model_id, _module, _class_name, _requirement in _TRAINER_IMPORTS:
+    _trainer_cls = _load_trainer(_module, _class_name, _requirement)
+    if _trainer_cls is not None:
+        MODEL_REGISTRY[_model_id] = _trainer_cls
 
 # The 8 Core Models explicitly requested
 CORE_8_MODEL_IDS = ["svm", "knn", "dtree", "rf", "adaboost", "xgboost", "lightgbm", "catboost"]

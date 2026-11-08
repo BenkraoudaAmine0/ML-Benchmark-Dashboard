@@ -13,7 +13,7 @@ from sklearn.impute import SimpleImputer
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import LabelEncoder, OneHotEncoder, StandardScaler
 
-from Modeling.config import TASK_CLASSIFICATION
+from config import TASK_CLASSIFICATION
 
 
 class DataPreprocessor:
@@ -76,9 +76,23 @@ class DataPreprocessor:
         else:
             self.label_encoder = None
             self.classes_ = None
-            y_train_proc = np.asarray(y_train, dtype=np.float64)
+            y_train_proc = self._coerce_regression_target(y_train, split="train")
 
         return np.asarray(X_train_proc, dtype=np.float64), y_train_proc
+
+    @staticmethod
+    def _coerce_regression_target(y: pd.Series, split: str = "train") -> np.ndarray:
+        """Convert a regression target to float, with a clear error for text values."""
+        numeric = pd.to_numeric(y, errors="coerce")
+        invalid = numeric.isna() & pd.notna(y)
+        if invalid.any():
+            samples = y[invalid].astype(str).unique()[:3].tolist()
+            raise ValueError(
+                f"Regression target contains {int(invalid.sum())} non-numeric value(s) in the "
+                f"{split} split (e.g. {samples}). Select a numeric target column or switch "
+                "the task type to classification."
+            )
+        return np.asarray(numeric, dtype=np.float64)
 
     def transform(
         self,
@@ -105,7 +119,7 @@ class DataPreprocessor:
                 else:
                     y_test_proc = np.asarray(y_test)
             else:
-                y_test_proc = np.asarray(y_test, dtype=np.float64)
+                y_test_proc = self._coerce_regression_target(y_test, split="test")
 
         return np.asarray(X_test_proc, dtype=np.float64), y_test_proc
 

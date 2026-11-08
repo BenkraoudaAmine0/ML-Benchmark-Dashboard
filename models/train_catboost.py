@@ -9,8 +9,8 @@ from typing import Any, Dict, List, Optional
 import numpy as np
 from catboost import CatBoostClassifier, CatBoostRegressor
 
-from Modeling.config import CAT_ENSEMBLE, TASK_CLASSIFICATION
-from Modeling.core.base import BaseModelTrainer
+from config import CAT_ENSEMBLE, TASK_CLASSIFICATION
+from core.base import BaseModelTrainer
 
 
 class CatBoostTrainer(BaseModelTrainer):

@@ -12,8 +12,8 @@ from sklearn.svm import SVC, SVR
 # Suppress scikit-learn 1.9+ probability deprecation warning
 warnings.filterwarnings("ignore", category=FutureWarning, module="sklearn")
 
-from Modeling.config import CAT_CLASSICAL, TASK_CLASSIFICATION
-from Modeling.core.base import BaseModelTrainer
+from config import CAT_CLASSICAL, TASK_CLASSIFICATION
+from core.base import BaseModelTrainer
 
 
 class SVMTrainer(BaseModelTrainer):

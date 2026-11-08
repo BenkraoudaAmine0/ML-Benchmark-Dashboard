@@ -14,7 +14,7 @@ from typing import Any, Dict, List, Optional
 
 import pandas as pd
 
-from Modeling.config import DB_PATH
+from config import DB_PATH
 
 _INIT_LOCK = threading.Lock()
 _INITIALIZED = False

@@ -25,7 +25,7 @@ from sklearn.metrics import (
     roc_auc_score,
 )
 
-from Modeling.config import TASK_CLASSIFICATION, TASK_REGRESSION
+from config import TASK_CLASSIFICATION, TASK_REGRESSION
 
 
 def evaluate_classification(

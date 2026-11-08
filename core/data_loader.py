@@ -12,7 +12,7 @@ import numpy as np
 import pandas as pd
 from sklearn.model_selection import train_test_split
 
-from Modeling.config import DATASETS_DIR, TASK_CLASSIFICATION, TASK_REGRESSION
+from config import DATASETS_DIR, TASK_CLASSIFICATION, TASK_REGRESSION
 
 
 def discover_datasets(base_dir: Optional[Path] = None) -> Dict[str, Path]:

@@ -7,7 +7,25 @@ from pathlib import Path
 # Paths
 BASE_DIR = Path(__file__).resolve().parent
 PROJECT_ROOT = BASE_DIR.parent
-DATASETS_DIR = PROJECT_ROOT / "Datasets"
+
+
+def _resolve_datasets_dir(start: Path) -> Path:
+    """Locate the Datasets folder regardless of the checkout's folder name.
+
+    Walks up from the project root and accepts either ``Datasets`` (the
+    documented name) or ``dataset`` (the name used in this workspace), so the
+    dashboard finds data from the main checkout as well as from git
+    worktrees nested inside it.
+    """
+    for base in (start, *start.parents):
+        for name in ("Datasets", "dataset"):
+            candidate = base / name
+            if candidate.is_dir():
+                return candidate
+    return start / "Datasets"
+
+
+DATASETS_DIR = _resolve_datasets_dir(BASE_DIR)
 STORAGE_DIR = BASE_DIR / "storage"
 DB_PATH = STORAGE_DIR / "training_results.db"
 ARTIFACTS_DIR = STORAGE_DIR / "artifacts"

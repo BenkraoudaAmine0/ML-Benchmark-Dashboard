@@ -12,8 +12,8 @@ from sklearn.neighbors import KNeighborsClassifier, KNeighborsRegressor
 from sklearn.tree import DecisionTreeClassifier, DecisionTreeRegressor
 from sklearn.ensemble import RandomForestClassifier, RandomForestRegressor
 
-from Modeling.config import CAT_ENSEMBLE, TASK_CLASSIFICATION
-from Modeling.core.base import BaseModelTrainer
+from config import CAT_ENSEMBLE, TASK_CLASSIFICATION
+from core.base import BaseModelTrainer
 
 
 class StackingTrainer(BaseModelTrainer):

@@ -15,17 +15,17 @@ warnings.filterwarnings("ignore", category=FutureWarning)
 import numpy as np
 import pandas as pd
 
-from Modeling.config import (
+from config import (
     CAT_CLASSICAL,
     CAT_ENSEMBLE,
     TASK_CLASSIFICATION,
     TASK_REGRESSION,
 )
-from Modeling.core.data_loader import prepare_data
-from Modeling.core.metrics import evaluate_model
-from Modeling.core.preprocessor import DataPreprocessor
-from Modeling.core.storage import save_experiment, save_model_result
-from Modeling.models.registry import MODEL_REGISTRY, instantiate_trainer
+from core.data_loader import prepare_data
+from core.metrics import evaluate_model
+from core.preprocessor import DataPreprocessor
+from core.storage import save_experiment, save_model_result
+from models.registry import MODEL_REGISTRY, instantiate_trainer
 
 
 class TrainingPipeline:
@@ -205,7 +205,7 @@ class TrainingPipeline:
 
                 # Save trained model artifact to disk
                 import joblib
-                from Modeling.config import ARTIFACTS_DIR
+                from config import ARTIFACTS_DIR
                 artifact_filename = f"exp_{experiment_id}_{mid}.joblib"
                 artifact_path = ARTIFACTS_DIR / artifact_filename
                 try:

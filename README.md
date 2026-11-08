@@ -130,7 +130,7 @@ The web application (`frontend/app.py`) is structured into five focused views:
 ## Project Structure
 
 ```
-Modeling/
+ML-Benchmark-Dashboard/
 ├── config.py                 # File paths, task constants, and SQLite database settings
 ├── core/
 │   ├── __init__.py
@@ -193,11 +193,13 @@ Run the following command from the workspace or repository root:
 streamlit run frontend/app.py
 ```
 
-If running from a parent folder, specify the relative path:
+The app adds its own project root to `sys.path`, so the checkout folder can have any name and you can also launch it from the workspace root:
 
 ```bash
-streamlit run Modeling/frontend/app.py
+streamlit run ML-Benchmark-Dashboard/frontend/app.py
 ```
+
+Datasets are discovered from the `Datasets/` (or `dataset/`) folder, looking in the project root first and then in its parent folders.
 
 ### 2. Run Smoke Tests (Synthetic Data)
 To verify that all 12 models and the SQLite persistence layer function properly without opening the dashboard:

@@ -7,16 +7,16 @@ import sys
 from pathlib import Path
 
 # Add project root to sys.path
-PROJECT_ROOT = Path(__file__).resolve().parent.parent
+PROJECT_ROOT = Path(__file__).resolve().parent
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 import pandas as pd
 from sklearn.datasets import make_classification, make_regression
 
-from Modeling.core.pipeline import TrainingPipeline
-from Modeling.core.storage import get_all_experiments, get_leaderboard
-from Modeling.models.registry import MODEL_REGISTRY
+from core.pipeline import TrainingPipeline
+from core.storage import get_all_experiments, get_leaderboard
+from models.registry import MODEL_REGISTRY
 
 
 def test_classification():

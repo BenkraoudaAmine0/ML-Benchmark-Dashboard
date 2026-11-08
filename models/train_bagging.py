@@ -9,8 +9,8 @@ from typing import Any, Dict
 from sklearn.ensemble import BaggingClassifier, BaggingRegressor
 from sklearn.tree import DecisionTreeClassifier, DecisionTreeRegressor
 
-from Modeling.config import CAT_ENSEMBLE, TASK_CLASSIFICATION
-from Modeling.core.base import BaseModelTrainer
+from config import CAT_ENSEMBLE, TASK_CLASSIFICATION
+from core.base import BaseModelTrainer
 
 
 class BaggingTrainer(BaseModelTrainer):

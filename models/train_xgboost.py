@@ -8,8 +8,8 @@ from __future__ import annotations
 from typing import Any, Dict
 import xgboost as xgb
 
-from Modeling.config import CAT_ENSEMBLE, TASK_CLASSIFICATION
-from Modeling.core.base import BaseModelTrainer
+from config import CAT_ENSEMBLE, TASK_CLASSIFICATION
+from core.base import BaseModelTrainer
 
 
 class XGBoostTrainer(BaseModelTrainer):
