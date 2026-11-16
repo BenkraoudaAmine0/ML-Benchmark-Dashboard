@@ -1,2 +1,10 @@
 __pycache__*
 catboost_info/
+.env
+.streamlit/secrets.toml
+storage/splits/
+storage/artifacts/
+storage/*.db-wal
+storage/*.db-shm
+
+storage/artifacts/*.joblib

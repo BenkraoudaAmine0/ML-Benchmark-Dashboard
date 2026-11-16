@@ -77,7 +77,7 @@ THEMES: Dict[str, Dict[str, str]] = {
         "rose": "#FB7185",
         "rose_soft": "rgba(251, 113, 133, 0.12)",
         "blue": "#60A5FA",
-        "blue_soft": "rgba(96, 165, 250, 0.12)",
+        "blue_soft": "#60A5FA",
         "input_bg": "rgba(255, 255, 255, 0.04)",
         "hover": "rgba(255, 255, 255, 0.06)",
         "sidebar_bg": "#0A0C0F",

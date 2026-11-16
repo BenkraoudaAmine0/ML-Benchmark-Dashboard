@@ -10,9 +10,9 @@ from typing import Dict, List, Optional, Tuple, Union
 
 import numpy as np
 import pandas as pd
-from sklearn.model_selection import train_test_split
 
 from config import DATASETS_DIR, TASK_CLASSIFICATION, TASK_REGRESSION
+from core.splits import SAMPLING_RANDOM, split_or_create
 
 
 def discover_datasets(base_dir: Optional[Path] = None) -> Dict[str, Path]:
@@ -88,48 +88,43 @@ def prepare_data(
     random_state: int = 42,
     drop_cols: Optional[List[str]] = None,
     max_samples: Optional[int] = None,
+    *,
+    sampling_strategy: str = SAMPLING_RANDOM,
+    split_id: Optional[int] = None,
+    save_split: bool = True,
+    allow_reuse: bool = True,
+    dataset_name: str = "Dataset",
 ) -> Tuple[pd.DataFrame, pd.DataFrame, pd.Series, pd.Series, str, List[Any]]:
     """
-    Prepares dataset by dropping unnecessary columns, removing target NaNs,
-    subsampling if max_samples is provided, and performing train-test split.
+    Prepares the dataset through the persistent split layer.
+
+    Dropping columns/rows, subsampling and the train-test split are delegated to
+    :func:`core.splits.split_or_create`, which reuses an identical saved split
+    when one exists.
 
     Returns:
         (X_train, X_test, y_train, y_test, inferred_or_confirmed_task, classes_list)
     """
-    if target_col not in df.columns:
-        raise ValueError(f"Target column '{target_col}' not found in DataFrame.")
-
-    # Drop specified columns and rows where target is null
-    df_clean = df.copy()
-    if drop_cols:
-        existing_drops = [c for c in drop_cols if c in df_clean.columns and c != target_col]
-        df_clean = df_clean.drop(columns=existing_drops)
-
-    df_clean = df_clean.dropna(subset=[target_col]).reset_index(drop=True)
-
-    # Subsample if dataset is larger than requested max_samples
-    if max_samples is not None and max_samples > 0 and len(df_clean) > max_samples:
-        df_clean = df_clean.sample(n=max_samples, random_state=random_state).reset_index(drop=True)
-
-    y = df_clean[target_col]
-    X = df_clean.drop(columns=[target_col])
-
-    # Infer or confirm task
-    task_type = task if task in (TASK_CLASSIFICATION, TASK_REGRESSION) else detect_task_type(y)
-
-    classes_list: List[Any] = []
-    stratify = None
-
-    if task_type == TASK_CLASSIFICATION:
-        # Check if every class has at least 2 samples for stratification
-        class_counts = y.value_counts()
-        classes_list = sorted(y.unique().tolist(), key=lambda x: str(x))
-        if (class_counts >= 2).all() and len(class_counts) > 1:
-            stratify = y
-
-    X_train, X_test, y_train, y_test = train_test_split(
-        X, y, test_size=test_size, random_state=random_state, stratify=stratify
+    split = split_or_create(
+        df=df,
+        target_col=target_col,
+        task=task,
+        test_size=test_size,
+        random_state=random_state,
+        drop_cols=drop_cols,
+        max_samples=max_samples,
+        sampling_strategy=sampling_strategy,
+        dataset_name=dataset_name,
+        split_id=split_id,
+        save=save_split,
+        allow_reuse=allow_reuse,
     )
-
-    return X_train, X_test, y_train, y_test, task_type, classes_list
+    return (
+        split.X_train,
+        split.X_test,
+        split.y_train,
+        split.y_test,
+        split.task_type,
+        split.classes,
+    )
 
