@@ -102,12 +102,6 @@ NOISE_STRATEGIES = [
     "rolling_mean",
     "rolling_median",
     "ema",
-    "savgol",
-    "hampel",
-    "interpolate",
-    "ffill",
-    "iqr_clip",
-    "zscore_clip",
 ]
 
 NOISE_STRATEGY_LABELS = {
@@ -115,12 +109,6 @@ NOISE_STRATEGY_LABELS = {
     "rolling_mean": "Rolling mean — smooth moving average",
     "rolling_median": "Rolling median — resistant to spikes",
     "ema": "Exponential moving average",
-    "savgol": "Savitzky–Golay — preserve peaks and shape",
-    "hampel": "Hampel filter — replace spike outliers only",
-    "interpolate": "Linear interpolation — fill gaps",
-    "ffill": "Forward fill — carry last value",
-    "iqr_clip": "IQR clip / winsorize — cap extreme tails",
-    "zscore_clip": "Z-score clip — cap at μ ± kσ",
 }
 
 OUTLIER_METHODS = ["none", "iqr", "zscore", "isolation_forest"]
